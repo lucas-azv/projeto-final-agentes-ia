@@ -1,1 +1,1 @@
-web: cd projeto-agentes-ia_3 && npm start
+web: npm start
