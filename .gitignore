@@ -1,0 +1,23 @@
+# Ignorar dependências
+node_modules/
+
+# Ignorar variáveis de ambiente
+.env
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Diretórios temporários
+dist/
+build/
+.tmp/
+.cache/
+
+# Arquivos do sistema
+.DS_Store
+Thumbs.db
+
+# VS Code configs (opcional)
+.vscode/
