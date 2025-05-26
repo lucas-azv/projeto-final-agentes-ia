@@ -3,7 +3,7 @@
 
 const express = require('express');
 const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
-const dotenv = require('dotenv').config();env
+require('dotenv').config();
 const path = require('path');
 
 const app = express();
