@@ -1,0 +1,202 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&display=swap');
+
+@font-face {
+    font-family: 'Roboto Mono';
+    font-style: normal;
+    font-weight: 100..700;
+    src: url('https://fonts.gstatic.com/s/robotomono/v10/4_2pX0c8v1g3x7k5z6f4a3g.woff2') format('woff2');
+}
+
+* {
+    font-family: 'Roboto Mono', monospace;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    max-height: 100vh;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 14px;
+    background-color: #1f1f1f;
+    position: relative; /* Manter se necessário para outros elementos */
+}
+
+#chat-container {
+    background-color: #2B2B2B;
+    border-radius: 36px;
+    padding: 24px;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+    width: 40%;
+    margin: auto;
+    height: calc(100vh - 28px - 48px); /* Ajuste com base nos paddings de body e container */
+    max-height: calc(100vh - 28px);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden; /* Para garantir o border-radius e pseudo-elementos */
+}
+
+h1 {
+    font-size: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+    color: white;
+    flex-shrink: 0;
+}
+
+#chat-history {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex-grow: 1; /* Para que o histórico ocupe o espaço restante */
+    overflow-y: scroll; /* ESSENCIAL para a scrollbar aparecer apenas quando necessário */
+    padding: 10px;
+    margin-bottom: 20px;
+
+    /* --- ESTILOS DA SCROLLBAR (INVISÍVEL POR PADRÃO) --- */
+
+    /* Para navegadores WebKit (Chrome, Safari, Edge) */
+    &::-webkit-scrollbar {
+        width: 8px; /* Largura da área da scrollbar quando visível */
+        background: transparent; /* Fundo da área da scrollbar transparente */
+        padding: 24px 0;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: transparent; /* Bolinha (thumb) transparente por padrão */
+        width: 8px;
+        border-radius: 8px; /* AQUI! Adiciona o arredondamento */
+        transition: background 0.2s ease-in-out; /* Transição suave para a cor */
+    }
+    &::-webkit-scrollbar-track {
+        background: transparent; /* Trilha (track) transparente por padrão */
+        width: 8px;
+        border-radius: 8px;
+        transition: background 0.2s ease-in-out; /* Transição suave para a cor */
+    }
+    /* Adicione um pequeno hack para que o background da track também apareça, se o thumb for estreito */
+    &::-webkit-scrollbar-track-piece {
+        background: transparent;
+    }
+
+
+    /* Para Firefox */
+    scrollbar-width: none; /* ESSENCIAL: Esconde a barra para Firefox por padrão */
+    scrollbar-color: transparent transparent; /* Bolinha e Trilha transparentes */
+    transition: scrollbar-color 0.3s ease-in-out; /* Transição para a cor da scrollbar (Firefox) */
+}
+
+/* --- ESTILOS DA SCROLLBAR QUANDO O MOUSE ESTÁ SOBRE O CHAT-HISTORY --- */
+
+#chat-history:hover {
+    /* Para Firefox: No hover, faça a barra aparecer e defina suas cores */
+    scrollbar-width: thin; /* Exibe uma scrollbar fina no hover */
+    scrollbar-color: #888 #2B2B2B; /* Cor da bolinha (#888) e da trilha (#555) */
+}
+
+/* Para navegadores WebKit (Chrome, Safari, Edge): No hover, dê cor à bolinha e trilha */
+#chat-history:hover::-webkit-scrollbar-thumb {
+    background: #888; /* Cor da bolinha da scrollbar no hover */
+}
+
+#chat-history:hover::-webkit-scrollbar-track {
+    background: #2B2B2B; /* Cor da trilha da scrollbar no hover */
+}
+
+/* Restante do seu CSS permanece o mesmo */
+.user-message {
+    text-align: justify;
+    padding: 12px;
+    background-color: #4d4d4d;
+    color: white;
+    border-radius: 18px 18px 0px 18px;
+    margin-bottom: 5px;
+    max-width: 80%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    align-self: flex-end;
+    margin-left: auto;
+}
+
+.bot-message {
+    text-align: left;
+    padding: 10px;
+    margin-bottom: 5px;
+    color: white;
+    max-width: 80%;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    white-space: pre-wrap;
+    align-self: flex-start;
+    margin-right: auto;
+}
+
+form {
+    display: flex;
+    flex-shrink: 0;
+}
+
+input {
+    display: flex;
+    align-items: center;
+    flex-grow: 1;
+    margin-right: 10px;
+    padding: 14px;
+    border-radius: 36px;
+    border: none;
+    background-color: #424242;
+    color: white;
+    transition: all 0.2s ease-in-out;
+}
+
+input:hover {
+    cursor: text;
+}
+
+input::placeholder {
+    color: white;
+}
+
+input:focus {
+    outline: none;
+    background-color: #5f5f5f;
+}
+
+button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #8A2BE2 0%, #FF69B4 50%, #8A2BE2 100%);
+    background-size: 200% 200%;
+    background-position: 0% 0%;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-position 0.5s ease-in-out;
+    color: white;
+}
+
+button:hover {
+    background-position: 100% 100%;
+}
+
+#loader {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#send-icon {
+    width: 24px;
+    height: 24px;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+}
