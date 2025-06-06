@@ -2,13 +2,13 @@ const express = require('express');
 const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
 require('dotenv').config();
 const path = require('path');
-const fs = require('fs/promises');
+const fs = require('fs/promises'); // Usando promises para readFile
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static(__dirname));
+app.use(express.static(__dirname)); // Serve arquivos estáticos do diretório raiz
 
 let MODEL_NAME;
 let initialMessageHistory;
@@ -19,7 +19,7 @@ let primaryDocumentPart = null;
 const API_KEY = process.env.API_KEY;
 if (!API_KEY) {
     console.error("Erro: A chave de API (API_KEY) não foi carregada. Verifique seu arquivo .env ou as Config Vars do Heroku.");
-    process.exit(1);
+    process.exit(1); // Encerra o processo se a API_KEY não estiver disponível
 }
 const genAI = new GoogleGenerativeAI(API_KEY);
 
@@ -30,11 +30,13 @@ async function loadConfigAndData() {
         const config = JSON.parse(configData);
 
         MODEL_NAME = config.modelName;
+        // Faz uma cópia profunda para que o histórico inicial não seja modificado diretamente
         initialMessageHistory = JSON.parse(JSON.stringify(config.initialMessageHistory));
-        primaryDocumentConfig = config.document;
+        primaryDocumentConfig = config.document; // Atribui a configuração do documento
 
         console.log("Configurações do modelo e histórico inicial carregados de data.json.");
 
+        // LÓGICA PARA CARREGAR O DOCUMENTO PRIMÁRIO LOCALMENTe
         if (primaryDocumentConfig && primaryDocumentConfig.path && primaryDocumentConfig.mimeType) {
             const documentLocalPath = path.join(__dirname, primaryDocumentConfig.path);
             const documentMimeType = primaryDocumentConfig.mimeType;
@@ -43,9 +45,19 @@ async function loadConfigAndData() {
                 await fs.access(documentLocalPath, fs.constants.F_OK);
                 console.log(`Documento primário encontrado localmente no caminho configurado: ${documentLocalPath}`);
 
-                primaryDocumentPart = GoogleGenerativeAI.createPartFromFile(documentLocalPath, documentMimeType);
-                console.log("Documento primário carregado e pronto para uso a partir do arquivo local.");
+                const documentBuffer = await fs.readFile(documentLocalPath);
+                const base64Data = documentBuffer.toString('base64');
 
+                primaryDocumentPart = {
+                    inlineData: {
+                        data: base64Data,
+                        mimeType: documentMimeType,
+                    },
+                };
+
+                console.log("Documento primário carregado e pronto para uso a partir do arquivo local (via inlineData).");
+
+                // Injeta o documento na primeira mensagem 'user' do histórico inicial
                 if (initialMessageHistory[0] && initialMessageHistory[0].role === 'user') {
                     if (!Array.isArray(initialMessageHistory[0].parts)) {
                         initialMessageHistory[0].parts = [];
@@ -63,7 +75,9 @@ async function loadConfigAndData() {
             console.warn("Aviso: Configuração do documento primário (chave 'document') não encontrada ou incompleta em data.json. Não será carregado.");
         }
 
+        // LÓGICA PARA CARREGAR O ARQUIVO DE FONTE (source.txt)
         const sourceFilePathFromConfig = config.sourceFilePath;
+
         if (sourceFilePathFromConfig) {
             const sourceFilePath = path.join(__dirname, sourceFilePathFromConfig);
 
