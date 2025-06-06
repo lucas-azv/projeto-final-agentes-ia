@@ -1,9 +1,8 @@
 const express = require('express');
-const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, createPartFromUri } = require('@google/generative-ai');
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
 require('dotenv').config();
 const path = require('path');
 const fs = require('fs/promises');
-const fetch = require('node-fetch');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -14,48 +13,15 @@ app.use(express.static(__dirname));
 let MODEL_NAME;
 let initialMessageHistory;
 let sourceContent = '';
-let bnccPdfConfig = null;
-let bnccPdfPart = null;
+let primaryDocumentConfig = null;
+let primaryDocumentPart = null;
 
-async function uploadRemotePDF(url, displayName) {
-    console.log(`Iniciando upload de PDF: ${displayName} de ${url}`);
-    const pdfBuffer = await fetch(url)
-        .then((response) => {
-            if (!response.ok) {
-                throw new Error(`Falha ao buscar PDF: ${response.statusText} (Status: ${response.status})`);
-            }
-            return response.arrayBuffer();
-        });
-
-    if (!process.env.API_KEY) {
-        throw new Error("API_KEY não definida. Não é possível fazer upload de arquivos.");
-    }
-    const ai = new GoogleGenerativeAI(process.env.API_KEY);
-
-    const fileBlob = new Blob([pdfBuffer], { type: 'application/pdf' });
-    const file = await ai.files.upload({
-        file: fileBlob,
-        config: {
-            displayName: displayName,
-        },
-    });
-    console.log(`Upload inicial do arquivo '${displayName}' concluído. Nome do arquivo: ${file.name}`);
-
-    let getFile = await ai.files.get({ name: file.name });
-    while (getFile.state === 'PROCESSING' || getFile.state === 'PENDING') {
-        getFile = await ai.files.get({ name: file.name });
-        console.log(`Status atual do arquivo '${displayName}': ${getFile.state}`);
-        console.log('Arquivo ainda está processando/pendente, tentando novamente em 5 segundos...');
-        await new Promise((resolve) => setTimeout(resolve, 5000));
-    }
-
-    if (getFile.state === 'FAILED') {
-        throw new Error(`O processamento do arquivo '${displayName}' falhou. Status: ${getFile.state}. Erro: ${getFile.error || 'Desconhecido'}`);
-    }
-
-    console.log(`Processamento do arquivo '${displayName}' concluído com sucesso. Status: ${getFile.state}`);
-    return getFile;
+const API_KEY = process.env.API_KEY;
+if (!API_KEY) {
+    console.error("Erro: A chave de API (API_KEY) não foi carregada. Verifique seu arquivo .env ou as Config Vars do Heroku.");
+    process.exit(1);
 }
+const genAI = new GoogleGenerativeAI(API_KEY);
 
 async function loadConfigAndData() {
     try {
@@ -64,52 +30,67 @@ async function loadConfigAndData() {
         const config = JSON.parse(configData);
 
         MODEL_NAME = config.modelName;
-        initialMessageHistory = config.initialMessageHistory;
-        bnccPdfConfig = config.bnccPdfConfig;
+        initialMessageHistory = JSON.parse(JSON.stringify(config.initialMessageHistory));
+        primaryDocumentConfig = config.document;
+
         console.log("Configurações do modelo e histórico inicial carregados de data.json.");
 
-        if (bnccPdfConfig && bnccPdfConfig.url && bnccPdfConfig.displayName) {
-            try {
-                const uploadedFile = await uploadRemotePDF(bnccPdfConfig.url, bnccPdfConfig.displayName);
-                if (uploadedFile.uri && uploadedFile.mimeType) {
-                    bnccPdfPart = createPartFromUri(uploadedFile.uri, uploadedFile.mimeType);
-                    console.log(`Documento BNCC carregado e pronto para uso: ${uploadedFile.name}`);
+        if (primaryDocumentConfig && primaryDocumentConfig.path && primaryDocumentConfig.mimeType) {
+            const documentLocalPath = path.join(__dirname, primaryDocumentConfig.path);
+            const documentMimeType = primaryDocumentConfig.mimeType;
 
-                    if (initialMessageHistory[0] && initialMessageHistory[0].role === 'user') {
-                        initialMessageHistory[0].parts.push(bnccPdfPart);
-                        console.log("Documento BNCC injetado no prompt inicial do modelo.");
-                    } else {
-                        console.warn("Aviso: Não foi possível injetar o PDF da BNCC no prompt inicial. Verifique a estrutura de initialMessageHistory.");
+            try {
+                await fs.access(documentLocalPath, fs.constants.F_OK);
+                console.log(`Documento primário encontrado localmente no caminho configurado: ${documentLocalPath}`);
+
+                primaryDocumentPart = GoogleGenerativeAI.createPartFromFile(documentLocalPath, documentMimeType);
+                console.log("Documento primário carregado e pronto para uso a partir do arquivo local.");
+
+                if (initialMessageHistory[0] && initialMessageHistory[0].role === 'user') {
+                    if (!Array.isArray(initialMessageHistory[0].parts)) {
+                        initialMessageHistory[0].parts = [];
                     }
+                    initialMessageHistory[0].parts.push(primaryDocumentPart);
+                    console.log("Documento primário injetado no prompt inicial do modelo.");
                 } else {
-                    console.error(`Erro: PDF da BNCC não retornou URI ou mimeType válido. Não será anexado.`);
+                    console.warn("Aviso: Não foi possível injetar o documento primário no prompt inicial. Verifique a estrutura de initialMessageHistory.");
                 }
-            } catch (pdfError) {
-                console.error(`Erro ao fazer upload ou processar o PDF da BNCC: ${pdfError.message}`);
-                console.warn("Continuando sem o documento BNCC devido a erro.");
+            } catch (documentError) {
+                console.error(`Erro ao carregar o documento primário localmente (${documentLocalPath}): ${documentError.message}`);
+                console.warn("Continuando sem o documento primário devido a erro.");
             }
         } else {
-            console.warn("Aviso: Configuração do PDF da BNCC não encontrada ou incompleta em data.json. Não será carregado.");
+            console.warn("Aviso: Configuração do documento primário (chave 'document') não encontrada ou incompleta em data.json. Não será carregado.");
         }
 
-        try {
-            sourceContent = await fs.readFile(sourceFilePath, 'utf8');
-            console.log(`Conteúdo da fonte '${sourceFilePathFromConfig}' carregado com sucesso.`);
+        const sourceFilePathFromConfig = config.sourceFilePath;
+        if (sourceFilePathFromConfig) {
+            const sourceFilePath = path.join(__dirname, sourceFilePathFromConfig);
 
-            if (initialMessageHistory[0] && initialMessageHistory[0].role === 'user') {
-                const promptParts = initialMessageHistory[0].parts[0].text.split('Para me ajudar a criar o roteiro, preciso das seguintes informações.');
-                if (promptParts.length > 1) {
-                    initialMessageHistory[0].parts[0].text =
-                        promptParts[0].trim() +
-                        `\n\n**Diretrizes Adicionais para Conteúdo:**\n${sourceContent}\n\n` +
-                        'Para me ajudar a criar o roteiro, preciso das seguintes informações.' +
-                        promptParts[1];
+            try {
+                sourceContent = await fs.readFile(sourceFilePath, 'utf8');
+                console.log(`Conteúdo da fonte '${sourceFilePath}' carregado com sucesso.`);
+
+                if (initialMessageHistory[0] && initialMessageHistory[0].role === 'user' && initialMessageHistory[0].parts && initialMessageHistory[0].parts[0] && initialMessageHistory[0].parts[0].text) {
+                    const promptParts = initialMessageHistory[0].parts[0].text.split('Para me ajudar a criar o roteiro, preciso das seguintes informações.');
+                    if (promptParts.length > 1) {
+                        initialMessageHistory[0].parts[0].text =
+                            promptParts[0].trim() +
+                            `\n\n**Diretrizes Adicionais para Conteúdo:**\n${sourceContent}\n\n` +
+                            'Para me ajudar a criar o roteiro, preciso das seguintes informações.' +
+                            promptParts[1];
+                    } else {
+                        initialMessageHistory[0].parts[0].text += `\n\n**Diretrizes Adicionais para Conteúdo:**\n${sourceContent}`;
+                    }
                 } else {
-                    initialMessageHistory[0].parts[0].text += `\n\n**Diretrizes Adicionais para Conteúdo:**\n${sourceContent}`;
+                    console.warn("Aviso: A estrutura do prompt inicial não permite a injeção do conteúdo da fonte. Verifique initialMessageHistory.");
                 }
+            } catch (error) {
+                console.warn(`Aviso: Não foi possível carregar o arquivo de fonte '${sourceFilePath}'. Continuando sem ele.`, error.message);
+                sourceContent = 'Nenhuma diretriz de SEO disponível.';
             }
-        } catch (error) {
-            console.warn(`Aviso: Não foi possível carregar o arquivo de fonte '${sourceFilePathFromConfig}'. Continuando sem ele.`, error.message);
+        } else {
+            console.warn("Aviso: 'sourceFilePath' não configurado em data.json. O conteúdo da fonte não será carregado.");
             sourceContent = 'Nenhuma diretriz de SEO disponível.';
         }
 
@@ -119,22 +100,15 @@ async function loadConfigAndData() {
     }
 }
 
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
-    console.error("Erro: A chave de API não foi carregada. Verifique seu arquivo .env.");
-    process.exit(1);
-}
-
 const userSessions = new Map();
 const MAX_HISTORY_LENGTH = 12;
 
 async function runChat(sessionId, userInput) {
     if (!MODEL_NAME || !initialMessageHistory) {
+        console.warn("Modelo ou histórico inicial não carregados. Tentando carregar novamente...");
         await loadConfigAndData();
     }
 
-    const genAI = new GoogleGenerativeAI(API_KEY);
     const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
     const generationConfig = {
@@ -216,13 +190,13 @@ app.post('/chat', async (req, res) => {
         res.json({ response });
     } catch (error) {
         console.error('Erro na rota /chat:', error);
-        if (error.status === 429) {
+        if (error.message && error.message.includes('quota')) {
             res.status(429).json({
                 error: 'Você excedeu sua cota de uso da API. Por favor, aguarde e tente novamente mais tarde.',
-                details: error.errorDetails || 'Detalhes do erro de cota.'
+                details: error.errorDetails || error.message
             });
         } else {
-            res.status(500).json({ error: 'Erro interno do servidor ao processar sua solicitação.' });
+            res.status(500).json({ error: 'Erro interno do servidor ao processar sua solicitação.', details: error.message });
         }
     }
 });
@@ -232,6 +206,6 @@ loadConfigAndData().then(() => {
         console.log(`Server running at http://localhost:${port}`);
     });
 }).catch(err => {
-    console.error("Falha ao iniciar o servidor devido a erro de carregamento:", err);
+    console.error("Falha ao iniciar o servidor devido a erro no carregamento das configurações/documentos:", err);
     process.exit(1);
 });
