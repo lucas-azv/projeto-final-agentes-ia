@@ -1,8 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@100..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-* {
-    font-family: 'Roboto Mono', monospace;
-}
+    * {
+        font-family: 'Inter', sans-serif;
+    }
 
 html, body {
     margin: 0;
@@ -25,7 +25,8 @@ body {
     padding: 24px;
     box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
     width: 100%;
-    max-width: 600px;
+    max-width: 55%;
+    margin: auto;
     height: calc(100vh - 28px - 48px);
     max-height: calc(100vh - 28px);
     display: flex;
@@ -35,7 +36,7 @@ body {
 }
 
 h1 {
-    font-size: 20px;
+    font-size: 22px;
     text-align: center;
     margin-bottom: 20px;
     color: white;
@@ -51,34 +52,22 @@ h1 {
     padding: 10px;
     margin-bottom: 20px;
 
-    scrollbar-width: none;
-    scrollbar-color: transparent transparent;
-    transition: scrollbar-color 0.3s ease-in-out;
-}
-
-#chat-history:hover {
     scrollbar-width: thin;
-    scrollbar-color: #888 #2B2B2B;
+    scrollbar-color: #353535 transparent;
 }
 
 #chat-history::-webkit-scrollbar {
-    width: 8px;
-    background: transparent;
+    width: 12px;
 }
+
+#chat-history::-webkit-scrollbar-track {
+    background: linear-gradient(to bottom, #2B2B2B, #444444);
+    border-radius: 12px;
+}
+
 #chat-history::-webkit-scrollbar-thumb {
     background: transparent;
     border-radius: 8px;
-    transition: background 0.2s ease-in-out;
-}
-#chat-history::-webkit-scrollbar-track {
-    background: transparent;
-    border-radius: 8px;
-}
-#chat-history:hover::-webkit-scrollbar-thumb {
-    background: #888;
-}
-#chat-history:hover::-webkit-scrollbar-track {
-    background: #2B2B2B;
 }
 
 .user-message,
@@ -86,10 +75,11 @@ h1 {
     max-width: 80%;
     word-wrap: break-word;
     overflow-wrap: break-word;
-    white-space: pre-wrap;
+    white-space: normal;
     padding: 6px 16px;
     animation: fadeInUp 0.3s ease forwards;
     transition: all 0.3s ease-in-out;
+    line-height: 1.5;
 }
 
 .user-message {

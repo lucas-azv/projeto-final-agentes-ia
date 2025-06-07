@@ -135,7 +135,7 @@ app.post('/chat', async (req, res) => {
 
         let chatContents = [];
 
-        const systemPromptWithBNCCContext = 
+        const systemPromptWithBNCCContext =
             `Você é Pixie, um assistente de aula virtual especializado em criar roteiros de aula.
             Seu objetivo é auxiliar professores e estudantes a desenvolverem planos de aula detalhados e contextualizados.
             VOCÊ DEVE SEMPRE USAR O CONTEXTO ABAIXO COMO SUA FONTE PRINCIPAL DE INFORMAÇÃO, especialmente para criar roteiros e responder perguntas sobre o documento.
@@ -166,9 +166,6 @@ app.post('/chat', async (req, res) => {
             role: 'user',
             parts: [{ text: userMessage }]
         });
-        
-        // console.log('PAYLOAD PARA CHAT:'); // Linha removida
-        // console.log(JSON.stringify({ contents: chatContents, generationConfig: { temperature: 0.7, maxOutputTokens: 500 } }, null, 2)); // Linha removida
 
         const result = await model.generateContent({
             contents: chatContents,
