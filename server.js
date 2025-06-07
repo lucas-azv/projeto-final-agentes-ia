@@ -1,225 +1,194 @@
-const express = require('express');
-const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require('@google/generative-ai');
-require('dotenv').config();
-const path = require('path');
-const fs = require('fs/promises'); // Usando promises para readFile
+import dotenv from 'dotenv';
+dotenv.config();
+
+import { Buffer } from 'buffer';
+import express from 'express';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(express.static(__dirname)); // Serve arquivos estáticos do diretório raiz
-
-let MODEL_NAME;
-let initialMessageHistory;
-let sourceContent = '';
-let primaryDocumentConfig = null;
-let primaryDocumentPart = null;
+app.use(express.static(path.join(__dirname, 'public')));
 
 const API_KEY = process.env.API_KEY;
 if (!API_KEY) {
-    console.error("Erro: A chave de API (API_KEY) não foi carregada. Verifique seu arquivo .env ou as Config Vars do Heroku.");
-    process.exit(1); // Encerra o processo se a API_KEY não estiver disponível
+    console.error("ERRO: A variável de ambiente API_KEY não está definida. Verifique seu arquivo .env.");
+    process.exit(1);
 }
+
+let appConfig = null;
+try {
+    const configPath = path.join(__dirname, 'config', 'data.json');
+    const configContent = await fs.readFile(configPath, 'utf8');
+    appConfig = JSON.parse(configContent);
+    console.log('Configuração carregada com sucesso do data.json.');
+} catch (error) {
+    console.error('ERRO: Não foi possível carregar ou parsear config/data.json:', error);
+    process.exit(1);
+}
+
 const genAI = new GoogleGenerativeAI(API_KEY);
+const model = genAI.getGenerativeModel({ model: appConfig.modelName });
 
-async function loadConfigAndData() {
-    try {
-        const configPath = path.join(__dirname, 'config', 'data.json');
-        const configData = await fs.readFile(configPath, 'utf8');
-        const config = JSON.parse(configData);
+let bnccSummary = null;
 
-        MODEL_NAME = config.modelName;
-        // Faz uma cópia profunda para que o histórico inicial não seja modificado diretamente
-        initialMessageHistory = JSON.parse(JSON.stringify(config.initialMessageHistory));
-        primaryDocumentConfig = config.document; // Atribui a configuração do documento
-
-        console.log("Configurações do modelo e histórico inicial carregados de data.json.");
-
-        // LÓGICA PARA CARREGAR O DOCUMENTO PRIMÁRIO LOCALMENTe
-        if (primaryDocumentConfig && primaryDocumentConfig.path && primaryDocumentConfig.mimeType) {
-            const documentLocalPath = path.join(__dirname, primaryDocumentConfig.path);
-            const documentMimeType = primaryDocumentConfig.mimeType;
-
-            try {
-                await fs.access(documentLocalPath, fs.constants.F_OK);
-                console.log(`Documento primário encontrado localmente no caminho configurado: ${documentLocalPath}`);
-
-                const documentBuffer = await fs.readFile(documentLocalPath);
-                const base64Data = documentBuffer.toString('base64');
-
-                primaryDocumentPart = {
-                    inlineData: {
-                        data: base64Data,
-                        mimeType: documentMimeType,
-                    },
-                };
-
-                console.log("Documento primário carregado e pronto para uso a partir do arquivo local (via inlineData).");
-
-                // Injeta o documento na primeira mensagem 'user' do histórico inicial
-                if (initialMessageHistory[0] && initialMessageHistory[0].role === 'user') {
-                    if (!Array.isArray(initialMessageHistory[0].parts)) {
-                        initialMessageHistory[0].parts = [];
-                    }
-                    initialMessageHistory[0].parts.push(primaryDocumentPart);
-                    console.log("Documento primário injetado no prompt inicial do modelo.");
-                } else {
-                    console.warn("Aviso: Não foi possível injetar o documento primário no prompt inicial. Verifique a estrutura de initialMessageHistory.");
-                }
-            } catch (documentError) {
-                console.error(`Erro ao carregar o documento primário localmente (${documentLocalPath}): ${documentError.message}`);
-                console.warn("Continuando sem o documento primário devido a erro.");
-            }
-        } else {
-            console.warn("Aviso: Configuração do documento primário (chave 'document') não encontrada ou incompleta em data.json. Não será carregado.");
-        }
-
-        // LÓGICA PARA CARREGAR O ARQUIVO DE FONTE (source.txt)
-        const sourceFilePathFromConfig = config.sourceFilePath;
-
-        if (sourceFilePathFromConfig) {
-            const sourceFilePath = path.join(__dirname, sourceFilePathFromConfig);
-
-            try {
-                sourceContent = await fs.readFile(sourceFilePath, 'utf8');
-                console.log(`Conteúdo da fonte '${sourceFilePath}' carregado com sucesso.`);
-
-                if (initialMessageHistory[0] && initialMessageHistory[0].role === 'user' && initialMessageHistory[0].parts && initialMessageHistory[0].parts[0] && initialMessageHistory[0].parts[0].text) {
-                    const promptParts = initialMessageHistory[0].parts[0].text.split('Para me ajudar a criar o roteiro, preciso das seguintes informações.');
-                    if (promptParts.length > 1) {
-                        initialMessageHistory[0].parts[0].text =
-                            promptParts[0].trim() +
-                            `\n\n**Diretrizes Adicionais para Conteúdo:**\n${sourceContent}\n\n` +
-                            'Para me ajudar a criar o roteiro, preciso das seguintes informações.' +
-                            promptParts[1];
-                    } else {
-                        initialMessageHistory[0].parts[0].text += `\n\n**Diretrizes Adicionais para Conteúdo:**\n${sourceContent}`;
-                    }
-                } else {
-                    console.warn("Aviso: A estrutura do prompt inicial não permite a injeção do conteúdo da fonte. Verifique initialMessageHistory.");
-                }
-            } catch (error) {
-                console.warn(`Aviso: Não foi possível carregar o arquivo de fonte '${sourceFilePath}'. Continuando sem ele.`, error.message);
-                sourceContent = 'Nenhuma diretriz de SEO disponível.';
-            }
-        } else {
-            console.warn("Aviso: 'sourceFilePath' não configurado em data.json. O conteúdo da fonte não será carregado.");
-            sourceContent = 'Nenhuma diretriz de SEO disponível.';
-        }
-
-    } catch (error) {
-        console.error("Erro fatal ao carregar configurações de data.json:", error);
-        process.exit(1);
-    }
-}
-
-const userSessions = new Map();
-const MAX_HISTORY_LENGTH = 12;
-
-async function runChat(sessionId, userInput) {
-    if (!MODEL_NAME || !initialMessageHistory) {
-        console.warn("Modelo ou histórico inicial não carregados. Tentando carregar novamente...");
-        await loadConfigAndData();
-    }
-
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
-
-    const generationConfig = {
-        temperature: 0.9,
-        topK: 1,
-        topP: 1,
-        maxOutputTokens: 1000,
+async function fileToGenerativePart(filePath, mimeType) {
+    const fileContent = await fs.readFile(filePath);
+    return {
+        inlineData: {
+            data: Buffer.from(fileContent).toString('base64'),
+            mimeType
+        },
     };
+}
 
-    const safetySettings = [
-        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    ];
-
-    let currentHistory = userSessions.get(sessionId);
-    if (!currentHistory) {
-        currentHistory = JSON.parse(JSON.stringify(initialMessageHistory));
-        userSessions.set(sessionId, currentHistory);
-    }
-
-    if (currentHistory.length > MAX_HISTORY_LENGTH) {
-        currentHistory.splice(2, 2);
-    }
-
-    currentHistory.push({
-        role: 'user',
-        parts: [{ text: userInput }]
-    });
-
-    const chat = model.startChat({
-        generationConfig,
-        safetySettings,
-        history: currentHistory,
-    });
-
+async function processAndSummarizeBNCC() {
+    console.log('Iniciando o processamento e resumo do documento BNCC...');
     try {
-        const result = await chat.sendMessage(userInput);
-        const botResponse = result.response.text();
+        const docPath = path.join(__dirname, appConfig.document.path);
+        const docMimeType = appConfig.document.mimeType;
 
-        currentHistory.push({
-            role: 'model',
-            parts: [{ text: botResponse }]
+        const pdfPart = await fileToGenerativePart(docPath, docMimeType);
+
+        const contentsForSummary = [
+            {
+                role: 'user',
+                parts: [
+                    { text: 'Por favor, resuma este documento de forma abrangente e em português.' },
+                    pdfPart
+                ]
+            }
+        ];
+
+        // console.log('PAYLOAD PARA RESUMO BNCC:'); // Linha removida
+        // console.dir(contentsForSummary, { depth: null, colors: true }); // Linha removida
+
+        const result = await model.generateContent({
+            contents: contentsForSummary,
+            generationConfig: {
+                temperature: 0.2,
+                maxOutputTokens: 1024,
+            }
         });
+        const response = await result.response;
+        const summary = response.text();
 
-        return botResponse;
+        console.log('Resumo do BNCC gerado com sucesso!');
+        bnccSummary = summary;
+        return true;
     } catch (error) {
-        console.error('Erro ao chamar a API Gemini:', error);
-        if (currentHistory[currentHistory.length - 1].role === 'user') {
-            currentHistory.pop();
+        console.error('Erro ao processar e resumir o documento BNCC:', error);
+        if (error.errorDetails) {
+            console.error('Detalhes do erro da API:', JSON.stringify(error.errorDetails, null, 2));
         }
-        throw error;
+        bnccSummary = "Desculpe, não consegui processar o documento BNCC. Por favor, tente novamente mais tarde.";
+        return false;
     }
 }
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+async function startServer() {
+    await processAndSummarizeBNCC();
 
-app.get('/loader.gif', (req, res) => {
-    res.sendFile(path.join(__dirname, 'images', 'loader.gif'));
-});
+    if (bnccSummary === "Desculpe, não consegui processar o documento BNCC. Por favor, tente novamente mais tarde.") {
+        console.warn('Aviso: O resumo da BNCC falhou, o Pixie poderá ter dificuldades em responder sobre o documento.');
+    }
 
-app.get('/send.png', (req, res) => {
-    res.sendFile(path.join(__dirname, 'images', 'send.png'));
-});
+    app.listen(PORT, () => {
+        console.log(`Servidor rodando em http://localhost:${PORT}`);
+        console.log('Chat está pronto para uso!');
+    });
+}
 
 app.post('/chat', async (req, res) => {
+    const userMessage = req.body.userInput;
+    // console.log('Mensagem do usuário recebida:', userMessage); // Linha removida
+
+    if (!userMessage) {
+        return res.status(400).json({ response: 'Por favor, digite uma mensagem.' });
+    }
+
+    let botResponse = "Desculpe, não consegui gerar uma resposta no momento. Tente novamente.";
+
     try {
-        const userInput = req.body?.userInput;
-        const sessionId = req.body?.sessionId || 'default-session-id';
-
-        if (!userInput) {
-            return res.status(400).json({ error: 'Corpo da requisição inválido: userInput é necessário.' });
-        }
-
-        const response = await runChat(sessionId, userInput);
-        res.json({ response });
-    } catch (error) {
-        console.error('Erro na rota /chat:', error);
-        if (error.message && error.message.includes('quota')) {
-            res.status(429).json({
-                error: 'Você excedeu sua cota de uso da API. Por favor, aguarde e tente novamente mais tarde.',
-                details: error.errorDetails || error.message
+        if (bnccSummary === null) {
+            return res.status(503).json({
+                response: "O Pixie ainda está carregando o documento BNCC. Por favor, aguarde alguns instantes e tente novamente."
             });
-        } else {
-            res.status(500).json({ error: 'Erro interno do servidor ao processar sua solicitação.', details: error.message });
         }
+        
+        if (bnccSummary.includes("Desculpe, não consegui processar o documento BNCC")) {
+            return res.json({
+                response: `Olá! Sou Pixie, seu assistente de aula virtual!
+                O documento que eu deveria acessar (BNCC) não pôde ser processado.
+                Portanto, não tenho acesso ao conteúdo da BNCC para elaborar o roteiro da aula.
+                Posso ajudar com informações gerais, mas para roteiros personalizados, o documento é essencial.
+                Por favor, me responda às perguntas para que eu possa criar um roteiro eficaz.`
+            });
+        }
+
+        let chatContents = [];
+
+        const systemPromptWithBNCCContext = 
+            `Você é Pixie, um assistente de aula virtual especializado em criar roteiros de aula.
+            Seu objetivo é auxiliar professores e estudantes a desenvolverem planos de aula detalhados e contextualizados.
+            VOCÊ DEVE SEMPRE USAR O CONTEXTO ABAIXO COMO SUA FONTE PRINCIPAL DE INFORMAÇÃO, especialmente para criar roteiros e responder perguntas sobre o documento.
+            O documento de referência que você está utilizando é a "${appConfig.document.displayName}".
+            
+            RESUMO DO DOCUMENTO "${appConfig.document.displayName}":
+            \`\`\`
+            ${bnccSummary}
+            \`\`\`
+            
+            Sempre se apresente como Pixie. Agora, para começar a criar roteiros, eu preciso de algumas informações.
+            Perguntas para iniciar a criação de um roteiro de aula:
+            1. Qual a matéria?
+            2. Qual o tema da aula?
+            3. Qual o objetivo da aula?
+            4. Qual o público-alvo?
+            5. Qual a duração da aula?
+            6. Qual o tom de voz/estilo?
+            
+            Se tiver alguma estrutura ou conteúdo específico que deseja abordar, por favor, me avise também!`;
+
+        chatContents.push({
+            role: 'user',
+            parts: [{ text: systemPromptWithBNCCContext }]
+        });
+
+        chatContents.push({
+            role: 'user',
+            parts: [{ text: userMessage }]
+        });
+        
+        // console.log('PAYLOAD PARA CHAT:'); // Linha removida
+        // console.log(JSON.stringify({ contents: chatContents, generationConfig: { temperature: 0.7, maxOutputTokens: 500 } }, null, 2)); // Linha removida
+
+        const result = await model.generateContent({
+            contents: chatContents,
+            generationConfig: {
+                temperature: 0.7,
+                maxOutputTokens: 500,
+            }
+        });
+        const response = await result.response;
+        botResponse = response.text();
+
+        res.json({ response: botResponse });
+
+    } catch (error) {
+        console.error('Erro ao gerar resposta do chatbot:', error);
+        if (error.errorDetails) {
+            console.error('Detalhes do erro da API:', JSON.stringify(error.errorDetails, null, 2));
+        }
+        res.status(500).json({ response: '❌ Ocorreu um erro ao processar sua solicitação.' });
     }
 });
 
-loadConfigAndData().then(() => {
-    app.listen(port, () => {
-        console.log(`Server running at http://localhost:${port}`);
-    });
-}).catch(err => {
-    console.error("Falha ao iniciar o servidor devido a erro no carregamento das configurações/documentos:", err);
-    process.exit(1);
-});
+startServer();

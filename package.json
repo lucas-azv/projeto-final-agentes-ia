@@ -2,6 +2,7 @@
   "name": "projeto-agentes-ia_3",
   "version": "1.0.0",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
@@ -11,6 +12,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@google/genai": "^1.4.0",
     "@google/generative-ai": "^0.24.1",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
