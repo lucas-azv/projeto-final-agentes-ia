@@ -1,8 +1,32 @@
 {
-  "modelName": "gemini-1.5-flash-latest",
+  "modelName": "gemini-2.0-flash",
   "document": {
-    "path": "docs/BNCC_EI_EF_110518_versaofinal_site.pdf",
+    "path": "docs/COMPILADO_Regulamento_de_AC.pdf",
     "mimeType": "application/pdf",
-    "displayName": "Base Nacional Comum Curricular"
-  }
+    "displayName": "Compilado Regulamento de AC"
+  },
+  "generationConfig": {
+    "temperature": 0.5,
+    "topP": 0.95,
+    "topK": 64,
+    "maxOutputTokens": 8192
+  },
+  "safetySettings": [
+    {
+      "category": "HARM_CATEGORY_HARASSMENT",
+      "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+    },
+    {
+      "category": "HARM_CATEGORY_HATE_SPEECH",
+      "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+    },
+    {
+      "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+      "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+    },
+    {
+      "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+      "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+    }
+  ]
 }
