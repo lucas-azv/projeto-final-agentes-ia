@@ -1,13 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-    * {
-        font-family: 'Inter', sans-serif;
-    }
+* {
+    font-family: 'Inter', sans-serif;
+    box-sizing: border-box;
+}
 
 html, body {
     margin: 0;
     padding: 0;
     max-height: 100vh;
+    background-color: #1f1f1f;
 }
 
 body {
@@ -15,7 +17,6 @@ body {
     justify-content: center;
     align-items: center;
     padding: 14px;
-    background-color: #1f1f1f;
     position: relative;
 }
 
@@ -25,9 +26,8 @@ body {
     padding: 24px;
     box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
     width: 100%;
-    max-width: 55%;
-    margin: auto;
-    height: calc(100vh - 28px - 48px);
+    max-width: 800px;
+    height: calc(100vh - 76px); /* 28px + 48px = 76px */
     max-height: calc(100vh - 28px);
     display: flex;
     flex-direction: column;
@@ -36,9 +36,9 @@ body {
 }
 
 h1 {
-    font-size: 22px;
+    font-size: clamp(18px, 2.5vw, 22px);
     text-align: center;
-    margin-bottom: 20px;
+    margin: 20px 0;
     color: white;
     flex-shrink: 0;
 }
@@ -48,41 +48,38 @@ h1 {
     flex-direction: column;
     gap: 12px;
     flex-grow: 1;
-    overflow-y: scroll;
+    overflow-y: auto;
     padding: 10px;
     margin-bottom: 20px;
-
     scrollbar-color: #575757 transparent;
+    scroll-behavior: smooth;
 }
 
 #chat-history::-webkit-scrollbar {
-    width: 14px;
+    width: 12px;
 }
-
 #chat-history::-webkit-scrollbar-track {
     border-radius: 12px;
 }
-
 #chat-history::-webkit-scrollbar-thumb {
     background: transparent;
     border-radius: 8px;
 }
 
-.user-message,
-.bot-message {
-    max-width: 80%;
+.user-message, .bot-message {
+    max-width: 85%;
     word-wrap: break-word;
-    overflow-wrap: break-word;
     white-space: normal;
-    padding: 6px 16px;
+    padding: 8px 24px;
     animation: fadeInUp 0.3s ease forwards;
-    transition: all 0.3s ease-in-out;
     line-height: 1.5;
+    text-align: left;
+    font-size: inherit;
+    color: white;
 }
 
 .user-message {
     background-color: #666666;
-    color: white;
     border-radius: 18px 18px 4px 18px;
     align-self: flex-end;
     margin-left: auto;
@@ -91,7 +88,6 @@ h1 {
 
 .bot-message {
     background-color: #3a3a3a;
-    color: white;
     border-radius: 18px 18px 18px 4px;
     align-self: flex-start;
     margin-right: auto;
@@ -99,29 +95,29 @@ h1 {
 
 form {
     display: flex;
+    align-items: center;
     flex-shrink: 0;
+    gap: 10px;
 }
 
 input {
     flex-grow: 1;
-    margin-right: 10px;
     padding: 14px;
     border-radius: 36px;
     border: none;
     background-color: #424242;
     color: white;
-    transition: all 0.2s ease-in-out;
+    transition: background-color 0.2s ease-in-out;
+    font-size: inherit;
 }
 
 input::placeholder {
-    color: white;
+    color: #ccc;
 }
+
 input:focus {
     outline: none;
     background-color: #5f5f5f;
-}
-input:hover {
-    cursor: text;
 }
 
 button {
@@ -149,6 +145,11 @@ button:active {
     opacity: 0.9;
 }
 
+button:focus {
+    outline: 2px solid #FF69B4;
+    outline-offset: 2px;
+}
+
 #loader {
     display: none;
     position: absolute;
@@ -160,4 +161,59 @@ button:active {
 #send-icon {
     width: 24px;
     height: 24px;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Mobile (<= 1024px) */
+@media (max-width: 1024px) {
+    h1 {
+        font-size: clamp(42px, 2.5vw, 48px);
+    }
+
+    #chat-container {
+        max-width: 100%;
+        height: auto;
+        min-height: 98vh;
+    }
+
+    body, input, .user-message, .bot-message {
+        font-size: 28px;
+    }
+
+    input {
+        padding: 32px;
+        border-radius: 64px;
+    }
+
+    button {
+        width: 84px;
+        height: 84px;
+    }
+
+    #send-icon {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+/* Desktop (> 1024px) */
+@media (min-width: 1025px) {
+    #chat-container {
+        max-width: 55%;
+        height: 100vh;
+    }
+
+    body, input, .user-message, .bot-message {
+        font-size: 16px;
+    }
 }
