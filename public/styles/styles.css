@@ -183,11 +183,15 @@ button:focus {
     #chat-container {
         max-width: 100%;
         height: auto;
-        min-height: 80vh;
+        min-height: 98vh;
     }
 
-    body, input, .user-message, .bot-message {
-        font-size: 28px;
+    body, input {
+        font-size: 32px;
+    }
+
+    .user-message, .bot-message {
+        font-size: 28px !important;
     }
 
     input {
@@ -205,6 +209,7 @@ button:focus {
         height: 36px;
     }
 }
+
 
 /* Desktop (> 1024px) */
 @media (min-width: 1025px) {
