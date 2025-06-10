@@ -183,7 +183,7 @@ button:focus {
     #chat-container {
         max-width: 100%;
         height: auto;
-        min-height: 98vh;
+        min-height: 90vh;
     }
 
     body, input {
@@ -209,7 +209,6 @@ button:focus {
         height: 36px;
     }
 }
-
 
 /* Desktop (> 1024px) */
 @media (min-width: 1025px) {
