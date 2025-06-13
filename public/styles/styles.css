@@ -125,7 +125,7 @@ button {
     height: 48px;
     border: none;
     border-radius: 50%;
-    background: linear-gradient(135deg, #8A2BE2 0%, #FF69B4 50%, #8A2BE2 100%);
+    background: linear-gradient(135deg, #2C8620 0%, #50d83e 50%, #35d420 100%);
     background-size: 200% 200%;
     background-position: 0% 0%;
     transition: background-position 0.5s ease-in-out, transform 0.1s ease;
